@@ -1,0 +1,1375 @@
+import React, { useState, useEffect } from 'react';
+import { 
+  BookOpen, Sparkles, FileText, Download, Printer, Settings, Users, 
+  History, LayoutTemplate, CheckCircle2, AlertCircle, Trash2, Edit3, 
+  Copy, Search, Filter, ChevronRight, ChevronLeft, Plus, X, ArrowRight, 
+  School, User, Calendar, Clock, Award, CheckSquare, Square, ShieldCheck,
+  LogOut, Lock, Mail, Eye, EyeOff, HelpCircle, RefreshCw, Layers, Zap,
+  Sliders, BookMarked, Building2, Check, FileSpreadsheet
+} from 'lucide-react';
+
+const PRINCIPAL_STAMP_SIGNATURE_URL = "https://i.imgur.com/vPQGU8s.png";
+const TEACHER_SIGNATURE_URL = "https://i.imgur.com/oyykCqq.png";
+
+// Helper to convert image URL to base64 so Word embeds it directly without linking errors
+const urlToBase64 = async (url) => {
+  try {
+    const response = await fetch(url, { mode: 'cors' });
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch (e) {
+    console.error("Error converting image to base64", e);
+    return url;
+  }
+};
+
+const PDF_SAMPLE_DATA = {
+  satuanPendidikan: "SMK Negeri 1 Bebandem",
+  namaGuru: "I Nyoman Duwika Adi Ana, S.Pd., M.Pd.",
+  nipGuru: "19841013 200902 1 003",
+  kepalaSekolah: "I Wayan Darmayasa, ST., M.Si",
+  nipKepalaSekolah: "19730522 200501 1 009",
+  mataPelajaran: "Perhotelan",
+  programKeahlian: "Perhotelan dan Jasa Pariwisata",
+  jenjang: "SMK",
+  kelas: "XII",
+  fase: "F",
+  semester: "Ganjil",
+  tahunPelajaran: "2026/2027",
+  alokasiWaktu: "6 JP (6 x 45 Menit)",
+  jumlahPertemuan: "1 Pertemuan (6 JP)",
+  jenisPembelajaran: "Teori & Praktik",
+  cp: "Peserta didik mampu menganalisis aktivitas pekerjaan pada industri perhotelan sebagai dasar memahami proses operasional hotel sesuai perkembangan industri perhotelan modern.",
+  selectedAssessmentTypes: ["Pilihan Ganda", "Uraian", "Benar/Salah", "Jawaban Singkat"],
+  jumlahSoal: 10,
+  tujuanPembelajaran: [
+    { kompetensi: "Menjelaskan", konten: "Sejarah perkembangan hotel dari masa ke masa.", indikator: "Peserta didik mampu menguraikan kronologi sejarah hotel dengan runtut." },
+    { kompetensi: "Menganalisis", konten: "Perkembangan industri perhotelan berdasarkan perubahan kebutuhan masyarakat dan teknologi.", indikator: "Peserta didik mampu menghubungkan pendorong perubahan industri hotel." },
+    { kompetensi: "Mengidentifikasi", konten: "Aktivitas pekerjaan pada industri perhotelan yang berkembang seiring perkembangan hotel.", indikator: "Peserta didik dapat mengkorelasikan unit kerja dengan evolusi pelayanan." },
+    { kompetensi: "Menyajikan", konten: "Hasil analisis sejarah hotel dalam bentuk presentasi digital secara kreatif dan mandiri.", indikator: "Peserta didik mempresentasikan karya menggunakan PID dan Google Slides." }
+  ],
+  materiPembelajaran: "Sejarah Hotel (Pengertian, Masa Romawi, Abad Pertengahan, Hotel Modern, Perkembangan di Indonesia, Evolusi Pelayanan & Teknologi)",
+  konsepUtama: "Sejarah Hotel, Evolusi Pelayanan, Teknologi Hotel, Hubungan Pekerjaan Perhotelan",
+  materiAjarDetail: [
+    { topik: "1. Pengertian & Hakikat Hotel", uraian: "Hotel adalah suatu bangunan atau badan usaha yang dikelola secara komersial dengan memberikan fasilitas akomodasi, penyedia makanan, minuman, dan pelayanan penunjang lainnya kepada masyarakat umum." },
+    { topik: "2. Sejarah & Evolusi Hotel dari Masa ke Masa", uraian: "Evolusi perhotelan berawal dari rumah singgah sederhana pada Masa Romawi dan Abad Pertengahan (Inn), berkembang menjadi hotel mewah di era revolusi industri, hingga hotel modern berbasis digital saat ini." },
+    { topik: "3. Perkembangan Industri Perhotelan di Indonesia", uraian: "Perkembangan hotel di Indonesia dimulai dari hotel-hotel peninggalan kolonial (seperti Hotel Des Indes) hingga berkembang pesatnya jaringan hotel nasional dan internasional di berbagai destinasi pariwisata." },
+    { topik: "4. Transformasi Teknologi & Pelayanan Hotel Modern", uraian: "Penerapan sistem Property Management System (PMS), self check-in kiosk, mobile key, hingga penerapan kecerdasan buatan (AI) dalam meningkatkan kualitas pelayanan operasional hotel." }
+  ],
+  pertanyaanPemantik: [
+    "Mengapa bentuk dan pelayanan hotel sekarang berbeda dengan hotel pada masa lalu?"
+  ],
+  profilLulusan: ["Kreativitas", "Mandiri", "Penalaran kritis"],
+  prinsipPembelajaran: ["Berkesadaran", "Bermakna", "Menggembirakan"],
+  modelPembelajaran: "Discovery Learning",
+  metodePembelajaran: ["Diskusi", "Tanya jawab", "Eksplorasi Digital", "Presentasi", "Brainstorming PID"],
+  mediaPembelajaran: ["Modul Ajar Digital", "Video Interaktif Sejarah Hotel", "Slide Presentasi Kreatif", "Studi Kasus DUDI"],
+  teknologiUtama: ["Papan Interaktif Digital (PID)", "Property Management System (PMS) Simulation", "Platform Rumah Pendidikan", "Smartphone / Laptop Peserta Didik"],
+  karakteristikPesertaDidik: "Peserta didik kelas XII Fase F yang siap memasuki dunia kerja, membutuhkan pembelajaran kontekstual berbasis digital dan diskusi berbasis masalah nyata.",
+  diferensiasi: ["Diferensiasi konten", "Diferensiasi proses"],
+  sumberBelajar: "Buku Teks Perhotelan Fase F Kurikulum Merdeka, Modul Ajar Digital, Jurnal Pariwisata Modern."
+};
+
+const generatePDFMatchedRpmHtml = (data) => {
+  return `
+    <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+    <head>
+      <meta charset='utf-8'>
+      <title>RPM - Rencana Pembelajaran Mendalam</title>
+      <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; line-height: 1.6; font-size: 11pt; margin: 20px; background-color: #ffffff; }
+        h1, h2, h3, h4 { color: #1e3a8a; }
+        .header-banner { background: #1e3a8a; color: #ffffff; padding: 25px; border-radius: 8px; margin-bottom: 20px; text-align: center; }
+        .section-box { border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px; margin-bottom: 20px; background-color: #ffffff; }
+        .section-title { background-color: #1e3a8a; color: #ffffff; padding: 10px 15px; font-weight: bold; font-size: 11pt; border-radius: 6px 6px 0 0; margin: -16px -16px 15px -16px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+        th, td { padding: 8px 12px; border: 1px solid #cbd5e1; font-size: 10.5pt; text-align: left; vertical-align: top; }
+        th { background-color: #f1f5f9; color: #334155; }
+        .badge-green { background-color: #f0fdf4; border-left: 4px solid #16a34a; padding: 12px; margin-bottom: 10px; border-radius: 4px; }
+        .badge-blue { background-color: #f0f9ff; border-left: 4px solid #0284c7; padding: 12px; margin-bottom: 10px; border-radius: 4px; }
+        .badge-yellow { background-color: #fffbeb; border-left: 4px solid #f59e0b; padding: 12px; margin-bottom: 10px; border-radius: 4px; }
+        .badge-purple { background-color: #faf5ff; border-left: 4px solid #a855f7; padding: 12px; margin-bottom: 10px; border-radius: 4px; }
+        .signature-table { width: 100%; border: none; margin-top: 40px; }
+        .signature-table td { border: none; }
+      </style>
+    </head>
+    <body>
+      <div class="header-banner">
+        <div style="font-size: 9pt; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px;">${data.satuanPendidikan}</div>
+        <h1 style="margin: 0; color: #ffffff; font-size: 16pt;">RENCANA PEMBELAJARAN MENDALAM (RPM)</h1>
+        <p style="margin: 5px 0 0 0; font-size: 11pt;">Kurikulum Merdeka & Pendekatan Deep Learning • Alokasi Jam: ${data.alokasiWaktu}</p>
+      </div>
+
+      <!-- A. IDENTITAS -->
+      <div class="section-box">
+        <div class="section-title">A. IDENTITAS PEMBELAJARAN</div>
+        <table>
+          <tr><td style="width: 35%; font-weight: bold;">Satuan Pendidikan</td><td>: ${data.satuanPendidikan}</td></tr>
+          <tr><td style="font-weight: bold;">Nama Guru</td><td>: ${data.namaGuru}</td></tr>
+          <tr><td style="font-weight: bold;">NIP Guru</td><td>: ${data.nipGuru}</td></tr>
+          <tr><td style="font-weight: bold;">Mata Pelajaran</td><td>: ${data.mataPelajaran}</td></tr>
+          <tr><td style="font-weight: bold;">Program Keahlian</td><td>: ${data.programKeahlian}</td></tr>
+          <tr><td style="font-weight: bold;">Kelas / Fase / Semester</td><td>: ${data.kelas} / Fase ${data.fase} / ${data.semester}</td></tr>
+          <tr><td style="font-weight: bold;">Tahun Pelajaran</td><td>: ${data.tahunPelajaran}</td></tr>
+          <tr><td style="font-weight: bold;">Alokasi Waktu / Jam Sekolah</td><td>: ${data.alokasiWaktu} (${data.jumlahPertemuan})</td></tr>
+          <tr><td style="font-weight: bold;">Jenis Pembelajaran</td><td>: ${data.jenisPembelajaran}</td></tr>
+        </table>
+      </div>
+
+      <!-- B. CAPAIAN PEMBELAJARAN -->
+      <div class="section-box">
+        <div class="section-title">B. CAPAIAN PEMBELAJARAN (CP)</div>
+        <div class="badge-blue">
+          <p style="margin: 0; font-style: italic;">"${data.cp}"</p>
+        </div>
+      </div>
+
+      <!-- C. TUJUAN PEMBELAJARAN -->
+      <div class="section-box">
+        <div class="section-title">C. TUJUAN PEMBELAJARAN (TP)</div>
+        ${(data.tujuanPembelajaran || []).map((tp, i) => `
+          <div class="badge-green">
+            <strong>${i + 1}. ${tp.kompetensi || 'Memahami'}</strong> - ${tp.konten || tp.indikator || tp}
+            ${tp.indikator ? `<br/><span style="font-size: 10pt; color: #166534;">Indikator: ${tp.indikator}</span>` : ''}
+          </div>
+        `).join('')}
+      </div>
+
+      <!-- D. DIMENSI PROFIL LULUSAN -->
+      <div class="section-box">
+        <div class="section-title">D. DIMENSI PROFIL LULUSAN</div>
+        <div class="badge-yellow">
+          <ul style="margin: 0; padding-left: 20px;">
+            ${(data.profilLulusan || []).map(p => `<li><strong>${p}</strong></li>`).join('')}
+          </ul>
+        </div>
+      </div>
+
+      <!-- E. MATERI AJAR & URAIAN MATERI -->
+      <div class="section-box">
+        <div class="section-title">E. MATERI AJAR & URAIAN MATERI PEMBELAJARAN</div>
+        <p><strong>Materi Pokok Utama:</strong> ${data.materiPembelajaran}</p>
+        <p><strong>Konsep Utama:</strong> ${data.konsepUtama}</p>
+        <h4 style="color: #1e3a8a; margin-top: 15px; margin-bottom: 8px;">Uraian Rinci Materi Ajar:</h4>
+        ${(data.materiAjarDetail || []).map((m, idx) => `
+          <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 12px; border-radius: 6px; margin-bottom: 10px;">
+            <strong style="color: #0369a1;">${m.topik}</strong>
+            <p style="margin: 5px 0 0 0; font-size: 10.5pt; color: #334155;">${m.uraian}</p>
+          </div>
+        `).join('')}
+      </div>
+
+      <!-- F. PRINSIP & MODEL PEMBELAJARAN -->
+      <div class="section-box">
+        <div class="section-title">F. PRINSIP, MODEL & METODE PEMBELAJARAN</div>
+        <p><strong>Prinsip Pembelajaran:</strong> ${(data.prinsipPembelajaran || []).join(', ')}</p>
+        <p><strong>Model Pembelajaran:</strong> ${data.modelPembelajaran}</p>
+        <p><strong>Metode Pembelajaran:</strong> ${(data.metodePembelajaran || []).join(', ')}</p>
+      </div>
+
+      <!-- G. MEDIA & TEKNOLOGI UTAMA -->
+      <div class="section-box">
+        <div class="section-title">G. MEDIA & TEKNOLOGI UTAMA PEMBELAJARAN</div>
+        <div style="margin-bottom: 12px;">
+          <h4 style="color: #0369a1; margin: 0 0 5px 0; font-size: 10.5pt;">1. Media Pembelajaran:</h4>
+          <ul style="margin: 0; padding-left: 20px;">
+            ${(data.mediaPembelajaran || []).map(med => `<li>${med}</li>`).join('')}
+          </ul>
+        </div>
+        <div>
+          <h4 style="color: #16a34a; margin: 0 0 5px 0; font-size: 10.5pt;">2. Teknologi Utama:</h4>
+          <ul style="margin: 0; padding-left: 20px;">
+            ${(data.teknologiUtama || []).map(tek => `<li>${tek}</li>`).join('')}
+          </ul>
+        </div>
+      </div>
+
+      <!-- H. LANGKAH PEMBELAJARAN -->
+      <div class="section-box">
+        <div class="section-title">H. LANGKAH-LANGKAH PEMBELAJARAN (JAM SEKOLAH: ${data.alokasiWaktu})</div>
+        <h4 style="color: #0369a1; margin-bottom: 5px;">1. Pendahuluan (±15 Menit)</h4>
+        <ul>
+          <li>Guru mengucapkan salam, berdoa, dan mengecek kehadiran peserta didik.</li>
+          <li>Menyampaikan tujuan pembelajaran dan apersepsi menggunakan media pembelajaran interaktif.</li>
+          <li><strong>Pertanyaan Pemantik:</strong> ${data.pertanyaanPemantik && data.pertanyaanPemantik[0] ? data.pertanyaanPemantik[0] : 'Mengapa materi ini penting dalam dunia kerja?'}</li>
+        </ul>
+
+        <h4 style="color: #16a34a; margin-bottom: 8px; margin-top: 15px;">2. Kegiatan Inti (±220 Menit) - Deep Learning (Aktivitas Guru & Siswa)</h4>
+        <table>
+          <tr style="background-color: #1e3a8a; color: white;">
+            <th style="width: 50%;">Aktivitas Guru</th>
+            <th style="width: 50%;">Aktivitas Siswa</th>
+          </tr>
+          <tr>
+            <td>
+              <strong>Fase Berkesadaran (Eksplorasi Konsep):</strong><br/>
+              • Menampilkan video/materi menggunakan Papan Interaktif Digital (PID).<br/>
+              • Memandu peserta didik mengidentifikasi konsep utama dan memberikan pengantar materi.
+            </td>
+            <td>
+              • Aktif menyimak penayangan video/materi dari guru.<br/>
+              • Mencatat poin-poin penting serta aktif bertanya dan menjawab pertanyaan pemantik yang diberikan guru.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <strong>Fase Bermakna (Analisis & Diskusi Kelompok):</strong><br/>
+              • Membentuk kelompok belajar kolaboratif.<br/>
+              • Membagikan LKPD / Studi Kasus DUDI dan membimbing proses analisis mendalam.<br/>
+              • Memfasilitasi diskusi dan pemecahan masalah.
+            </td>
+            <td>
+              • Berdiskusi secara aktif dan kolaboratif dalam kelompok.<br/>
+              • Menganalisis studi kasus nyata yang diberikan guru dan mengaitkannya dengan pengalaman/dunia industri.<br/>
+              • Menyusun laporan hasil diskusi kelompok.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <strong>Fase Menggembirakan (Presentasi & Penguatan):</strong><br/>
+              • Memandu jalannya presentasi hasil kerja kelompok.<br/>
+              • Memimpin sesi kuis interaktif digital.<br/>
+              • Memberikan apresiasi positif, umpan balik, dan penguatan materi.
+            </td>
+            <td>
+              • Mempresentasikan hasil kerja kelompok di depan kelas secara percaya diri dan kreatif.<br/>
+              • Aktif menanggapi kelompok lain, mengikuti kuis interaktif dengan antusias, serta merangkum hasil pembelajaran.
+            </td>
+          </tr>
+        </table>
+
+        <h4 style="color: #b45309; margin-bottom: 5px; margin-top: 15px;">3. Penutup (±35 Menit)</h4>
+        <ul>
+          <li>Guru bersama peserta didik menyimpulkan materi pembelajaran.</li>
+          <li>Melaksanakan refleksi pembelajaran secara mandiri.</li>
+          <li>Menutup kegiatan dengan doa bersama.</li>
+        </ul>
+      </div>
+
+      <!-- I. ASESMEN & SOAL EVALUASI -->
+      <div class="section-box">
+        <div class="section-title">I. ASESMEN, SOAL EVALUASI & RUBRIK PENILAIAN</div>
+        <p><strong>1. Asesmen Diagnostik:</strong> Pertanyaan lisan & kuis awal untuk mengetahui kesiapan belajar.</p>
+        <p><strong>2. Asesmen Formatif:</strong> Observasi keaktifan diskusi, LKPD, dan penilaian kerja kelompok.</p>
+        <p><strong>3. Asesmen Sumatif (Soal Evaluasi):</strong></p>
+        <p style="font-size: 10pt; color: #475569; margin-bottom: 12px;">Jenis Asesmen Dipilih: <strong>${(data.selectedAssessmentTypes || ['Pilihan Ganda', 'Uraian']).join(', ')}</strong> | Total Jumlah Soal: <strong>${data.jumlahSoal || 10} Soal</strong></p>
+        
+        ${(data.selectedAssessmentTypes || []).includes('Pilihan Ganda') ? `
+          <h4 style="color: #1e3a8a; margin-top: 15px; margin-bottom: 5px;">A. Soal Pilihan Ganda</h4>
+          <ol style="margin: 0; padding-left: 20px;">
+            <li style="margin-bottom: 10px;">Apakah yang dimaksud dengan hotel dalam industri perhotelan modern?<br/>
+              <span style="font-size: 10pt; color: #334155;">A. Tempat tinggal tetap jangka panjang bagi masyarakat.<br/>B. Bangunan usaha komersial penyedia akomodasi, makanan, minuman, dan pelayanan.<br/>C. Lembaga keuangan khusus pariwisata internasional.<br/>D. Pusat pelatihan keterampilan kerja mandiri.</span><br/>
+              <span style="font-size: 9.5pt; color: #166534; font-style: italic;">Kunci Jawaban: B</span>
+            </li>
+            <li style="margin-bottom: 10px;">Perkembangan industri perhotelan di era modern sangat didukung oleh penerapan sistem...<br/>
+              <span style="font-size: 10pt; color: #334155;">A. Kunci kamar manual dari kayu<br/>B. Property Management System (PMS) & Digital Key<br/>C. Mesin tik mekanik konvensional<br/>D. Buku pencatatan tamu fisik harian</span><br/>
+              <span style="font-size: 9.5pt; color: #166534; font-style: italic;">Kunci Jawaban: B</span>
+            </li>
+          </ol>
+        ` : ''}
+
+        ${(data.selectedAssessmentTypes || []).includes('Uraian') ? `
+          <h4 style="color: #1e3a8a; margin-top: 15px; margin-bottom: 5px;">B. Soal Uraian (Essay)</h4>
+          <ol style="margin: 0; padding-left: 20px;">
+            <li style="margin-bottom: 10px;">Jelaskan bagaimana evolusi pelayanan hotel dari masa Romawi Kuno (Inn) hingga berkembang menjadi hotel mewah di era revolusi industri!</li>
+            <li style="margin-bottom: 10px;">Analisis mengapa penerapan teknologi digital seperti self check-in kiosk dan PMS sangat penting bagi efisiensi operasional hotel saat ini.</li>
+          </ol>
+        ` : ''}
+
+        ${(data.selectedAssessmentTypes || []).includes('Benar/Salah') ? `
+          <h4 style="color: #1e3a8a; margin-top: 15px; margin-bottom: 5px;">C. Soal Benar / Salah</h4>
+          <ol style="margin: 0; padding-left: 20px;">
+            <li style="margin-bottom: 8px;">( <strong>B</strong> / <strong>S</strong> ) Hotel komersial pertama di dunia modern lahir dari evolusi rumah singgah (inn) di Eropa pada Abad Pertengahan.</li>
+            <li style="margin-bottom: 8px;">( <strong>B</strong> / <strong>S</strong> ) Property Management System (PMS) hanya digunakan untuk pencatatan tamu keluar tanpa mengelola reservasi kamar.</li>
+          </ol>
+        ` : ''}
+
+        ${(data.selectedAssessmentTypes || []).includes('Jawaban Singkat') ? `
+          <h4 style="color: #1e3a8a; margin-top: 15px; margin-bottom: 5px;">D. Soal Jawaban Singkat</h4>
+          <ol style="margin: 0; padding-left: 20px;">
+            <li style="margin-bottom: 8px;">Sebutkan istilah sistem perangkat lunak utama yang mengelola operasional hotel secara terintegrasi! <br/><em>(Kunci: Property Management System / PMS)</em></li>
+            <li style="margin-bottom: 8px;">Sebutkan salah satu bentuk akomodasi kuno pada Masa Romawi yang menjadi cikal bakal hotel! <br/><em>(Kunci: Inn / Rumah Singgah)</em></li>
+          </ol>
+        ` : ''}
+
+        <h4 style="margin-top: 20px; margin-bottom: 5px;">Rubrik Penilaian</h4>
+        <table>
+          <tr style="background-color: #1e3a8a; color: white;">
+            <th>Aspek Penilaian</th>
+            <th style="text-align: center; width: 25%;">Bobot</th>
+          </tr>
+          <tr><td>Pemahaman Materi & Konsep</td><td style="text-align: center;">30%</td></tr>
+          <tr><td>Analisis & Studi Kasus</td><td style="text-align: center;">25%</td></tr>
+          <tr><td>Kreativitas Produk / Soal Evaluasi</td><td style="text-align: center;">20%</td></tr>
+          <tr><td>Presentasi & Komunikasi</td><td style="text-align: center;">15%</td></tr>
+          <tr><td>Kemandirian & Tanggung Jawab</td><td style="text-align: center;">10%</td></tr>
+          <tr style="font-weight: bold; background-color: #f1f5f9;"><td>TOTAL</td><td style="text-align: center;">100%</td></tr>
+        </table>
+      </div>
+
+      <!-- J. TANDA TANGAN & STEMPEL RESMI -->
+      <div style="margin-top: 40px;">
+        <table class="signature-table">
+          <tr>
+            <td style="width: 50%; text-align: left; vertical-align: top;">
+              <p>Mengetahui,</p>
+              <p><strong>Kepala ${data.satuanPendidikan}</strong></p>
+              <div style="height: 190px; position: relative; margin: 5px 0;">
+                <img src="${PRINCIPAL_STAMP_SIGNATURE_URL}" width="360" height="180" style="width: 360px; height: 180px; object-fit: contain;" alt="Stempel & Tanda Tangan Kepala Sekolah" />
+              </div>
+              <p style="margin: 5px 0 0 0; text-decoration: underline; font-weight: bold;">${data.kepalaSekolah}</p>
+              <p style="margin: 2px 0 0 0; font-size: 10pt;">NIP. ${data.nipKepalaSekolah}</p>
+            </td>
+            <td style="width: 50%; text-align: left; vertical-align: top;">
+              <p>Bebandem, 20 Juli 2026</p>
+              <p><strong>Guru Mata Pelajaran</strong></p>
+              <div style="height: 85px; position: relative; margin: 5px 0;">
+                <img src="${TEACHER_SIGNATURE_URL}" width="157" height="74" style="width: 157px; height: 74px; object-fit: contain;" alt="Tanda Tangan Guru" />
+              </div>
+              <p style="margin: 5px 0 0 0; text-decoration: underline; font-weight: bold;">${data.namaGuru}</p>
+              <p style="margin: 2px 0 0 0; font-size: 10pt;">NIP. ${data.nipGuru}</p>
+            </td>
+          </tr>
+        </table>
+      </div>
+
+    </body>
+    </html>
+  `;
+};
+
+export default function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(true);
+  const [authView, setAuthView] = useState('login'); // login, register, forgot
+  const [authEmail, setAuthEmail] = useState('guru@sekolah.sch.id');
+  const [authPassword, setAuthPassword] = useState('password123');
+
+  const [currentTab, setCurrentTab] = useState('dashboard');
+  const [toast, setToast] = useState(null);
+  const [wizardStep, setWizardStep] = useState(1);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [autoSaveStatus, setAutoSaveStatus] = useState('Tersimpan otomatis');
+
+  // School profile state
+  const [schoolProfile, setSchoolProfile] = useState({
+    namaSekolah: "SMK Negeri 1 Bebandem",
+    npsN: "69955431",
+    alamat: "Jl. Raya Bebandem, Karangasem, Bali",
+    kabupatenKota: "Kabupaten Karangasem",
+    provinsi: "Bali",
+    kepalaSekolah: "I Wayan Darmayasa, ST., M.Si",
+    nipKepalaSekolah: "19730522 200501 1 009",
+    namaGuru: "I Nyoman Duwika Adi Ana, S.Pd., M.Pd.",
+    nipGuru: "19841013 200902 1 003"
+  });
+
+  // Main Form Data for Wizard
+  const [formData, setFormData] = useState({
+    satuanPendidikan: "SMK Negeri 1 Bebandem",
+    namaGuru: "I Nyoman Duwika Adi Ana, S.Pd., M.Pd.",
+    nipGuru: "19841013 200902 1 003",
+    kepalaSekolah: "I Wayan Darmayasa, ST., M.Si",
+    nipKepalaSekolah: "19730522 200501 1 009",
+    mataPelajaran: "Perhotelan",
+    programKeahlian: "Perhotelan dan Jasa Pariwisata",
+    jenjang: "SMK",
+    kelas: "XII",
+    fase: "F",
+    semester: "Ganjil",
+    tahunPelajaran: "2026/2027",
+    alokasiWaktu: "6 JP (6 x 45 Menit)",
+    jumlahPertemuan: "1 Pertemuan (6 JP)",
+    jenisPembelajaran: "Teori & Praktik",
+    cp: "Peserta didik mampu menganalisis aktivitas pekerjaan pada industri perhotelan sebagai dasar memahami proses operasional hotel sesuai perkembangan industri perhotelan modern.",
+    selectedAssessmentTypes: ["Pilihan Ganda", "Uraian", "Benar/Salah", "Jawaban Singkat"],
+    jumlahSoal: 10,
+    tujuanPembelajaran: [
+      { kompetensi: "Menjelaskan", konten: "Sejarah perkembangan hotel dari masa ke masa.", indikator: "Peserta didik mampu menguraikan kronologi sejarah hotel dengan runtut." },
+      { kompetensi: "Menganalisis", konten: "Perkembangan industri perhotelan berdasarkan perubahan kebutuhan masyarakat dan teknologi.", indikator: "Peserta didik mampu menghubungkan pendorong perubahan industri hotel." }
+    ],
+    materiPembelajaran: "Sejarah Hotel & Evolusi Pelayanan Modern",
+    konsepUtama: "Sejarah Hotel, Evolusi Pelayanan, Teknologi Hotel",
+    materiAjarDetail: [
+      { topik: "1. Pengertian & Hakikat Hotel", uraian: "Hotel adalah suatu bangunan atau badan usaha yang dikelola secara komersial dengan memberikan fasilitas akomodasi dan pelayanan kepada masyarakat." },
+      { topik: "2. Sejarah & Evolusi Hotel", uraian: "Perkembangan dari rumah singgah kuno hingga hotel modern berstandar internasional." },
+      { topik: "3. Teknologi Hotel Modern", uraian: "Penerapan PMS, sistem digital, dan otomatisasi pelayanan." }
+    ],
+    pertanyaanPemantik: ["Mengapa bentuk dan pelayanan hotel sekarang berbeda dengan hotel pada masa lalu?"],
+    profilLulusan: ["Kreativitas", "Mandiri", "Penalaran kritis"],
+    prinsipPembelajaran: ["Berkesadaran", "Bermakna", "Menggembirakan"],
+    modelPembelajaran: "Discovery Learning",
+    metodePembelajaran: ["Diskusi", "Tanya jawab", "Eksplorasi Digital", "Presentasi"],
+    mediaPembelajaran: ["Modul Ajar Digital", "Video Interaktif", "Slide Presentasi Kreatif"],
+    teknologiUtama: ["Papan Interaktif Digital (PID)", "Smartphone / Laptop Peserta Didik", "Property Management System (PMS) Simulation"],
+    karakteristikPesertaDidik: "Peserta didik kelas XII Fase F yang siap memasuki dunia kerja.",
+    diferensiasi: ["Diferensiasi konten", "Diferensiasi proses"],
+    sumberBelajar: "Buku Teks Perhotelan Fase F, Modul Digital.",
+    editorContent: generatePDFMatchedRpmHtml(PDF_SAMPLE_DATA),
+    generatedResult: generatePDFMatchedRpmHtml(PDF_SAMPLE_DATA)
+  });
+
+  // Saved RPM History List
+  const [savedRpmList, setSavedRpmList] = useState([
+    {
+      id: 'RPM-2026-001',
+      mataPelajaran: 'Perhotelan',
+      kelas: 'XII',
+      fase: 'F',
+      materi: 'Sejarah Hotel & Evolusi Pelayanan',
+      tanggal: '2026-07-20',
+      status: 'Selesai (Siap Cetak / Word)',
+      isi: generatePDFMatchedRpmHtml(PDF_SAMPLE_DATA)
+    }
+  ]);
+
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setAutoSaveStatus('Tersimpan otomatis');
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [formData]);
+
+  const handleUseSampleData = () => {
+    setFormData(prev => ({
+      ...prev,
+      ...PDF_SAMPLE_DATA,
+      editorContent: generatePDFMatchedRpmHtml(PDF_SAMPLE_DATA),
+      generatedResult: generatePDFMatchedRpmHtml(PDF_SAMPLE_DATA)
+    }));
+    showToast('Contoh data lengkap berhasil dimuat!');
+  };
+
+  const handleAiAutoFill = async () => {
+    setIsGenerating(true);
+    showToast('AI sedang menyusun materi ajar dan rekomendasi lengkap...', 'success');
+    
+    setTimeout(() => {
+      setFormData(prev => ({
+        ...prev,
+        cp: `Peserta didik mampu menguasai prinsip dasar dan penerapan praktis dalam ${prev.mataPelajaran} dengan pendekatan kontekstual dan teknologi terkini.`,
+        materiAjarDetail: [
+          { topik: `1. Konsep Dasar ${prev.materiPembelajaran}`, uraian: `Pemahaman mendalam mengenai prinsip dan teori dasar yang mendasari materi ${prev.materiPembelajaran}.` },
+          { topik: `2. Prosedur & Praktik Operasional`, uraian: `Langkah-langkah aplikatif dan standar operasional yang berlaku di dunia industri (DUDI).` },
+          { topik: `3. Integrasi Teknologi & Tren Terkini`, uraian: `Pemanfaatan perangkat digital, aplikasi pendukung, dan inovasi terbaru dalam bidang terkait.` }
+        ]
+      }));
+      setIsGenerating(false);
+      showToast('AI berhasil mengisi materi ajar secara rinci!');
+    }, 1200);
+  };
+
+  const handleGenerateRpm = async () => {
+    if (!formData.mataPelajaran || !formData.kelas || !formData.materiPembelajaran) {
+      showToast('Mohon lengkapi data mata pelajaran, kelas, dan materi sebelum membuat RPM.', 'error');
+      return;
+    }
+
+    setIsGenerating(true);
+    showToast('AI sedang menyusun Rencana Pembelajaran Mendalam lengkap dengan Materi Ajar...');
+
+    setTimeout(() => {
+      const generatedHtml = generatePDFMatchedRpmHtml(formData);
+      setFormData(prev => ({
+        ...prev,
+        editorContent: generatedHtml,
+        generatedResult: generatedHtml
+      }));
+      
+      const newEntry = {
+        id: `RPM-${Date.now().toString().slice(-4)}`,
+        mataPelajaran: formData.mataPelajaran,
+        kelas: formData.kelas,
+        fase: formData.fase,
+        materi: formData.materiPembelajaran,
+        tanggal: new Date().toISOString().split('T')[0],
+        status: 'Selesai (Siap Cetak / Word)',
+        isi: generatedHtml
+      };
+      setSavedRpmList([newEntry, ...savedRpmList]);
+      
+      setIsGenerating(false);
+      showToast('RPM Berhasil Dibuat dengan Materi Ajar Lengkap!');
+      setCurrentTab('preview');
+    }, 1500);
+  };
+
+  const handleDownloadWord = async () => {
+    showToast('Menyiapkan dokumen Word dengan gambar tertanam...');
+    try {
+      const principalBase64 = await urlToBase64(PRINCIPAL_STAMP_SIGNATURE_URL);
+      const teacherBase64 = await urlToBase64(TEACHER_SIGNATURE_URL);
+
+      let htmlContent = formData.editorContent || generatePDFMatchedRpmHtml(formData);
+      htmlContent = htmlContent.replace(PRINCIPAL_STAMP_SIGNATURE_URL, principalBase64);
+      htmlContent = htmlContent.replace(TEACHER_SIGNATURE_URL, teacherBase64);
+
+      const blob = new Blob(['\ufeff' + htmlContent], { type: 'application/msword;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `RPM_${formData.mataPelajaran.replace(/\s+/g, '_')}_${formData.kelas}.doc`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('Dokumen Word Berhasil Diunduh!');
+    } catch (err) {
+      const contentToExport = formData.editorContent || generatePDFMatchedRpmHtml(formData);
+      const blob = new Blob(['\ufeff' + contentToExport], { type: 'application/msword;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `RPM_${formData.mataPelajaran.replace(/\s+/g, '_')}_${formData.kelas}.doc`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('Dokumen Word Berhasil Diunduh!');
+    }
+  };
+
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl space-y-6">
+          <div className="text-center space-y-2">
+            <div className="w-12 h-12 rounded-xl bg-indigo-600 text-white flex items-center justify-center mx-auto shadow-lg">
+              <Sparkles className="w-6 h-6" />
+            </div>
+            <h2 className="text-2xl font-bold text-slate-800">RPM Generator</h2>
+            <p className="text-xs text-slate-500">Rencana Pembelajaran Mendalam Profesional berbasis AI</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-800 flex font-sans antialiased">
+      {toast && (
+        <div className="fixed top-5 right-5 z-50 bg-slate-900 text-white px-5 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-slate-700 animate-fade-in">
+          {toast.type === 'error' ? <AlertCircle className="w-5 h-5 text-red-400" /> : <CheckCircle2 className="w-5 h-5 text-emerald-400" />}
+          <span className="text-sm font-medium">{toast.message}</span>
+        </div>
+      )}
+
+      {/* Sidebar */}
+      <aside className="w-72 bg-slate-900 text-slate-300 flex flex-col justify-between hidden md:flex border-r border-slate-800 shadow-xl">
+        <div>
+          <div className="p-6 border-b border-slate-800 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-lg">
+              <Sparkles className="w-6 h-6" />
+            </div>
+            <div>
+              <h1 className="font-bold text-white text-base tracking-wide">RPM Generator</h1>
+              <p className="text-xs text-indigo-400 font-medium">Pembelajaran Mendalam</p>
+            </div>
+          </div>
+
+          <nav className="p-4 space-y-1.5">
+            <button 
+              onClick={() => setCurrentTab('dashboard')} 
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${currentTab === 'dashboard' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30' : 'hover:bg-slate-800 text-slate-400 hover:text-white'}`}
+            >
+              <Layers className="w-5 h-5" /> Dashboard Utama
+            </button>
+            <button 
+              onClick={() => {
+                setCurrentTab('wizard');
+                setWizardStep(1);
+              }} 
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${currentTab === 'wizard' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30' : 'hover:bg-slate-800 text-slate-400 hover:text-white'}`}
+            >
+              <Plus className="w-5 h-5" /> Buat RPM Baru
+            </button>
+            <button 
+              onClick={() => setCurrentTab('preview')} 
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${currentTab === 'preview' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30' : 'hover:bg-slate-800 text-slate-400 hover:text-white'}`}
+            >
+              <FileText className="w-5 h-5" /> Pratinjau Dokumen RPM
+            </button>
+            <button 
+              onClick={() => setCurrentTab('history')} 
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${currentTab === 'history' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30' : 'hover:bg-slate-800 text-slate-400 hover:text-white'}`}
+            >
+              <History className="w-5 h-5" /> Riwayat RPM
+            </button>
+            <button 
+              onClick={() => setCurrentTab('templates')} 
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${currentTab === 'templates' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30' : 'hover:bg-slate-800 text-slate-400 hover:text-white'}`}
+            >
+              <LayoutTemplate className="w-5 h-5" /> Template RPM
+            </button>
+            <button 
+              onClick={() => setCurrentTab('school')} 
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${currentTab === 'school' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30' : 'hover:bg-slate-800 text-slate-400 hover:text-white'}`}
+            >
+              <Building2 className="w-5 h-5" /> Profil Sekolah
+            </button>
+          </nav>
+        </div>
+
+        <div className="p-4 border-t border-slate-800 space-y-3">
+          <div className="bg-slate-800/60 rounded-xl p-3.5 border border-slate-700/50">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center font-bold text-sm justify-center">
+                ID
+              </div>
+              <div className="overflow-hidden">
+                <p className="text-xs font-semibold text-white truncate">{formData.namaGuru}</p>
+                <p className="text-[10px] text-slate-400 truncate">{formData.satuanPendidikan}</p>
+              </div>
+            </div>
+          </div>
+          <button 
+            onClick={() => {
+              setIsLoggedIn(false);
+              showToast('Berhasil keluar akun.');
+            }}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-800 hover:bg-red-900/40 text-slate-400 hover:text-red-300 text-xs font-semibold transition-all"
+          >
+            <LogOut className="w-4 h-4" /> Keluar Akun
+          </button>
+          <div className="text-center pt-2 border-t border-slate-800/80">
+            <p className="text-[10px] text-slate-400 leading-tight">
+              Aplikasi Dikembangkan Oleh :<br/>
+              <span className="font-semibold text-slate-300">I Nyoman Duwika Adi Ana, S.Pd., M.Pd.</span><br/>
+              <span className="text-indigo-400">SMK Negeri 1 Bebandem</span>
+            </p>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+        <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-xs">
+          <div>
+            <h2 className="text-lg font-bold text-slate-800">
+              {currentTab === 'dashboard' && 'Dashboard Utama RPM'}
+              {currentTab === 'wizard' && 'Form Pembuatan Rencana Pembelajaran Mendalam (RPM)'}
+              {currentTab === 'preview' && 'Pratinjau Modul Ajar RPM'}
+              {currentTab === 'history' && 'Riwayat Dokumen RPM'}
+              {currentTab === 'templates' && 'Pilihan Template RPM'}
+              {currentTab === 'school' && 'Pengaturan Profil Satuan Pendidikan'}
+            </h2>
+            <p className="text-xs text-slate-500">
+              {autoSaveStatus} • Kurikulum Merdeka & Pendekatan Deep Learning
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {currentTab !== 'wizard' && (
+              <button 
+                onClick={() => {
+                  setCurrentTab('wizard');
+                  setWizardStep(1);
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow-md flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" /> + Buat RPM Baru
+              </button>
+            )}
+            <button 
+              onClick={handleUseSampleData}
+              className="px-3 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 flex items-center gap-1.5"
+            >
+              <RefreshCw className="w-3.5 h-3.5" /> Gunakan Contoh Data
+            </button>
+          </div>
+        </header>
+
+        {/* 1. DASHBOARD TAB */}
+        {currentTab === 'dashboard' && (
+          <div className="p-6 md:p-8 max-w-7xl mx-auto w-full space-y-8">
+            <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-indigo-900 rounded-3xl p-8 md:p-10 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-6">
+              <div className="space-y-3">
+                <span className="bg-white/20 text-white text-[11px] font-semibold px-3 py-1 rounded-full uppercase">SaaS Pendidikan Profesional</span>
+                <h3 className="text-2xl md:text-4xl font-extrabold tracking-tight">RPM Generator – Rencana Pembelajaran Mendalam</h3>
+                <p className="text-indigo-100 text-sm md:text-base leading-relaxed max-w-2xl">
+                  Buat Rencana Pembelajaran Mendalam (Deep Learning) secara cepat, sistematis, dan profesional dengan dukungan AI dan materi ajar lengkap.
+                </p>
+                <div className="pt-2 flex gap-4 flex-wrap">
+                  <button 
+                    onClick={() => {
+                      setCurrentTab('wizard');
+                      setWizardStep(1);
+                    }}
+                    className="px-6 py-3.5 bg-white text-indigo-700 font-bold rounded-xl shadow-lg hover:bg-indigo-50 text-sm flex items-center gap-2 transition-all"
+                  >
+                    + Buat RPM Baru <ArrowRight className="w-4 h-4" />
+                  </button>
+                  <button 
+                    onClick={() => setCurrentTab('history')}
+                    className="px-6 py-3.5 bg-indigo-800 text-white font-bold rounded-xl border border-indigo-600 hover:bg-indigo-900 text-sm flex items-center gap-2"
+                  >
+                    Lihat Riwayat ({savedRpmList.length})
+                  </button>
+                </div>
+              </div>
+              <div className="bg-white/10 p-6 rounded-2xl border border-white/20 backdrop-blur-md text-center min-w-[220px]">
+                <p className="text-xs uppercase tracking-wider text-indigo-200 font-bold">Status Sistem AI</p>
+                <p className="text-2xl font-black mt-1 text-emerald-300 flex items-center justify-center gap-1.5">
+                  <span className="w-3 h-3 rounded-full bg-emerald-400 animate-pulse"></span> Siap Aktif
+                </p>
+                <p className="text-[11px] text-indigo-100 mt-2">Gemini 3 Flash AI Engine Connected</p>
+              </div>
+            </div>
+
+            {/* Statistics Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-lg">
+                  <FileText className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-slate-500">Total RPM Dibuat</p>
+                  <h4 className="text-2xl font-black text-slate-800 mt-0.5">{savedRpmList.length} Dokumen</h4>
+                </div>
+              </div>
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-lg">
+                  <Calendar className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-slate-500">RPM Bulan Ini</p>
+                  <h4 className="text-2xl font-black text-slate-800 mt-0.5">2 Dokumen</h4>
+                </div>
+              </div>
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold text-lg">
+                  <Clock className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-slate-500">Draft RPM</p>
+                  <h4 className="text-2xl font-black text-slate-800 mt-0.5">0 Draft</h4>
+                </div>
+              </div>
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold text-lg">
+                  <Award className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-slate-500">RPM Selesai</p>
+                  <h4 className="text-2xl font-black text-slate-800 mt-0.5">{savedRpmList.length} Selesai</h4>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 2. WIZARD TAB (MULTI-STEP FORM) */}
+        {currentTab === 'wizard' && (
+          <div className="p-6 md:p-8 max-w-4xl mx-auto w-full space-y-6">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-2">
+                <span className="w-8 h-8 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-xs">{wizardStep}</span>
+                <span className="font-bold text-slate-800 text-sm">
+                  {wizardStep === 1 && 'Step 1: Identitas Pembelajaran'}
+                  {wizardStep === 2 && 'Step 2: Komponen Kurikulum & Materi Ajar'}
+                  {wizardStep === 3 && 'Step 3: Prinsip & Model Pembelajaran'}
+                  {wizardStep === 4 && 'Step 4: Media & Teknologi Utama'}
+                  {wizardStep === 5 && 'Step 5: Asesmen, Rubrik & Aktivitas'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={handleAiAutoFill}
+                  disabled={isGenerating}
+                  className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white text-xs font-bold rounded-xl shadow-md hover:opacity-95 flex items-center gap-1.5"
+                >
+                  <Zap className="w-3.5 h-3.5" /> {isGenerating ? 'AI Sedang Menyusun...' : '⚡ Isi AI & Materi Ajar'}
+                </button>
+              </div>
+            </div>
+
+            {/* STEP 1: IDENTITAS */}
+            {wizardStep === 1 && (
+              <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-xs space-y-5">
+                <h3 className="font-bold text-base text-slate-800">1. Identitas Satuan Pendidikan & Kelas</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Nama Satuan Pendidikan</label>
+                    <input 
+                      type="text" 
+                      value={formData.satuanPendidikan} 
+                      onChange={e => setFormData({...formData, satuanPendidikan: e.target.value})}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Nama Guru Pengampu</label>
+                    <input 
+                      type="text" 
+                      value={formData.namaGuru} 
+                      onChange={e => setFormData({...formData, namaGuru: e.target.value})}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">NIP Guru</label>
+                    <input 
+                      type="text" 
+                      value={formData.nipGuru} 
+                      onChange={e => setFormData({...formData, nipGuru: e.target.value})}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Mata Pelajaran</label>
+                    <input 
+                      type="text" 
+                      value={formData.mataPelajaran} 
+                      onChange={e => setFormData({...formData, mataPelajaran: e.target.value})}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Jenjang Pendidikan</label>
+                    <select 
+                      value={formData.jenjang} 
+                      onChange={e => setFormData({...formData, jenjang: e.target.value})}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm bg-white"
+                    >
+                      <option value="SD">SD</option>
+                      <option value="SMP">SMP</option>
+                      <option value="SMA">SMA</option>
+                      <option value="SMK">SMK</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Kelas</label>
+                    <input 
+                      type="text" 
+                      value={formData.kelas} 
+                      onChange={e => setFormData({...formData, kelas: e.target.value})}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Fase</label>
+                    <select 
+                      value={formData.fase} 
+                      onChange={e => setFormData({...formData, fase: e.target.value})}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm bg-white"
+                    >
+                      <option value="A">Fase A (1-2 SD)</option>
+                      <option value="B">Fase B (3-4 SD)</option>
+                      <option value="C">Fase C (5-6 SD)</option>
+                      <option value="D">Fase D (SMP)</option>
+                      <option value="E">Fase E (10 SMA/SMK)</option>
+                      <option value="F">Fase F (11-12 SMA/SMK)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Semester</label>
+                    <select 
+                      value={formData.semester} 
+                      onChange={e => setFormData({...formData, semester: e.target.value})}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm bg-white"
+                    >
+                      <option value="Ganjil">Ganjil</option>
+                      <option value="Genap">Genap</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Alokasi Waktu / Jam Sekolah</label>
+                    <input 
+                      type="text" 
+                      value={formData.alokasiWaktu} 
+                      onChange={e => setFormData({...formData, alokasiWaktu: e.target.value})}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Jenis Pembelajaran</label>
+                    <select 
+                      value={formData.jenisPembelajaran} 
+                      onChange={e => setFormData({...formData, jenisPembelajaran: e.target.value})}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm bg-white"
+                    >
+                      <option value="Teori">Teori</option>
+                      <option value="Praktik">Praktik</option>
+                      <option value="Teori & Praktik">Teori & Praktik</option>
+                      <option value="Proyek">Proyek</option>
+                      <option value="Teaching Factory">Teaching Factory</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 2: KURIKULUM & MATERI AJAR */}
+            {wizardStep === 2 && (
+              <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-xs space-y-5">
+                <h3 className="font-bold text-base text-slate-800">2. Capaian Pembelajaran (CP) & Materi Ajar Rinci</h3>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Capaian Pembelajaran (CP)</label>
+                  <textarea 
+                    rows="2"
+                    value={formData.cp}
+                    onChange={e => setFormData({...formData, cp: e.target.value})}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm"
+                  ></textarea>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Materi Pembelajaran Pokok</label>
+                  <input 
+                    type="text"
+                    value={formData.materiPembelajaran}
+                    onChange={e => setFormData({...formData, materiPembelajaran: e.target.value})}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm"
+                  />
+                </div>
+
+                {/* Uraian Materi Ajar */}
+                <div className="pt-2">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-bold text-slate-700">Uraian / Rincian Materi Ajar (Akan Dicetak di Hasil RPM)</label>
+                    <button 
+                      onClick={() => setFormData({
+                        ...formData, 
+                        materiAjarDetail: [...formData.materiAjarDetail, { topik: "Topik Baru", uraian: "Uraian materi..." }]
+                      })}
+                      className="px-3 py-1 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg hover:bg-indigo-100"
+                    >
+                      + Tambah Sub-Materi
+                    </button>
+                  </div>
+                  {formData.materiAjarDetail.map((mat, idx) => (
+                    <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-xl mb-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-700">Sub-Materi #{idx + 1}</span>
+                        <button 
+                          onClick={() => {
+                            const newMat = formData.materiAjarDetail.filter((_, i) => i !== idx);
+                            setFormData({...formData, materiAjarDetail: newMat});
+                          }}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <input 
+                        type="text" 
+                        placeholder="Topik / Judul Sub-Materi" 
+                        value={mat.topik}
+                        onChange={e => {
+                          const mats = [...formData.materiAjarDetail];
+                          mats[idx].topik = e.target.value;
+                          setFormData({...formData, materiAjarDetail: mats});
+                        }}
+                        className="w-full px-3 py-2 rounded-lg border text-xs bg-white font-semibold"
+                      />
+                      <textarea 
+                        rows="2"
+                        placeholder="Uraian penjelasan materi..." 
+                        value={mat.uraian}
+                        onChange={e => {
+                          const mats = [...formData.materiAjarDetail];
+                          mats[idx].uraian = e.target.value;
+                          setFormData({...formData, materiAjarDetail: mats});
+                        }}
+                        className="w-full px-3 py-2 rounded-lg border text-xs bg-white"
+                      ></textarea>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* STEP 3: PRINSIP & MODEL PEMBELAJARAN */}
+            {wizardStep === 3 && (
+              <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-xs space-y-5">
+                <h3 className="font-bold text-base text-slate-800">3. Prinsip & Model Pembelajaran Mendalam</h3>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-2">Model Pembelajaran</label>
+                  <select 
+                    value={formData.modelPembelajaran}
+                    onChange={e => setFormData({...formData, modelPembelajaran: e.target.value})}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm bg-white"
+                  >
+                    <option value="Discovery Learning">Discovery Learning</option>
+                    <option value="Problem Based Learning">Problem Based Learning</option>
+                    <option value="Project Based Learning">Project Based Learning</option>
+                    <option value="Inquiry Learning">Inquiry Learning</option>
+                    <option value="Cooperative Learning">Cooperative Learning</option>
+                    <option value="Teaching Factory">Teaching Factory</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-2">Dimensi Profil Lulusan</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {["Keimanan dan ketakwaan", "Kewargaan", "Penalaran kritis", "Kreativitas", "Kolaborasi", "Kemandirian"].map(item => {
+                      const selected = formData.profilLulusan.includes(item);
+                      return (
+                        <div 
+                          key={item}
+                          onClick={() => {
+                            const updated = selected ? formData.profilLulusan.filter(i => i !== item) : [...formData.profilLulusan, item];
+                            setFormData({...formData, profilLulusan: updated});
+                          }}
+                          className={`p-3 rounded-xl border cursor-pointer text-xs font-semibold flex items-center justify-between ${selected ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'bg-slate-50 border-slate-200 text-slate-700'}`}
+                        >
+                          <span>{item}</span>
+                          {selected ? <CheckCircle2 className="w-4 h-4 text-indigo-600" /> : <Square className="w-4 h-4 text-slate-400" />}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 4: MEDIA & TEKNOLOGI UTAMA */}
+            {wizardStep === 4 && (
+              <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-xs space-y-5">
+                <h3 className="font-bold text-base text-slate-800">4. Media & Teknologi Utama Pembelajaran</h3>
+                <p className="text-xs text-slate-500">Atur pemisahan antara media pembelajaran pendukung dan teknologi utama yang digunakan saat kegiatan belajar mengajar.</p>
+                
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Media Pembelajaran (Pisahkan dengan koma atau edit langsung)</label>
+                  <input 
+                    type="text"
+                    value={formData.mediaPembelajaran.join(', ')}
+                    onChange={e => setFormData({...formData, mediaPembelajaran: e.target.value.split(',').map(s => s.trim())})}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm mb-2"
+                  />
+                </div>
+
+                <div className="pt-2">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Teknologi Utama Pembelajaran</label>
+                  <input 
+                    type="text"
+                    value={formData.teknologiUtama.join(', ')}
+                    onChange={e => setFormData({...formData, teknologiUtama: e.target.value.split(',').map(s => s.trim())})}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm mb-2"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Karakteristik Peserta Didik</label>
+                  <textarea 
+                    rows="2"
+                    value={formData.karakteristikPesertaDidik}
+                    onChange={e => setFormData({...formData, karakteristikPesertaDidik: e.target.value})}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm"
+                  ></textarea>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 5: ASESMEN, SOAL EVALUASI & GENERATE */}
+            {wizardStep === 5 && (
+              <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-xs space-y-5">
+                <h3 className="font-bold text-base text-slate-800">5. Konfigurasi Jenis Asesmen & Jumlah Soal Evaluasi</h3>
+                <p className="text-xs text-slate-500">Pilih jenis soal asesmen sumatif yang ingin disertakan ke dalam dokumen RPM dan tentukan jumlah soalnya.</p>
+                
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-2">Jenis Asesmen yang Disertakan:</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {["Pilihan Ganda", "Uraian", "Benar/Salah", "Jawaban Singkat"].map(item => {
+                      const selected = formData.selectedAssessmentTypes.includes(item);
+                      return (
+                        <div 
+                          key={item}
+                          onClick={() => {
+                            const updated = selected ? formData.selectedAssessmentTypes.filter(i => i !== item) : [...formData.selectedAssessmentTypes, item];
+                            setFormData({...formData, selectedAssessmentTypes: updated});
+                          }}
+                          className={`p-3 rounded-xl border cursor-pointer text-xs font-semibold flex items-center justify-between ${selected ? 'bg-indigo-50 border-indigo-500 text-indigo-700' : 'bg-slate-50 border-slate-200 text-slate-700'}`}
+                        >
+                          <span>{item}</span>
+                          {selected ? <CheckCircle2 className="w-4 h-4 text-indigo-600" /> : <Square className="w-4 h-4 text-slate-400" />}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Jumlah Soal Evaluasi</label>
+                  <select 
+                    value={formData.jumlahSoal}
+                    onChange={e => setFormData({...formData, jumlahSoal: parseInt(e.target.value)})}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm bg-white"
+                  >
+                    <option value={5}>5 Soal</option>
+                    <option value={10}>10 Soal</option>
+                    <option value={15}>15 Soal</option>
+                    <option value={20}>20 Soal</option>
+                  </select>
+                </div>
+
+                <div className="pt-4 text-center border-t border-slate-100">
+                  <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-3xl flex items-center justify-center mx-auto shadow-inner mb-3">
+                    <Sparkles className="w-8 h-8" />
+                  </div>
+                  <h3 className="text-xl font-extrabold text-slate-800">Semua Data & Soal Asesmen Siap!</h3>
+                  <p className="text-sm text-slate-600 max-w-md mx-auto mb-4">
+                    AI akan menyusun seluruh komponen Rencana Pembelajaran Mendalam (RPM) lengkap dengan soal asesmen pilihan ganda, uraian, benar/salah, serta jawaban singkat.
+                  </p>
+                  <button 
+                    onClick={handleGenerateRpm}
+                    disabled={isGenerating}
+                    className="px-8 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold rounded-2xl shadow-xl hover:opacity-95 text-base flex items-center justify-center gap-2 mx-auto"
+                  >
+                    <Sparkles className="w-5 h-5" /> {isGenerating ? 'Menyusun RPM & Soal...' : '✨ GENERATE RPM & ASESMEN SEKARANG'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Wizard Navigation Footer */}
+            <div className="flex items-center justify-between pt-4">
+              <button 
+                onClick={() => setWizardStep(prev => Math.max(1, prev - 1))}
+                disabled={wizardStep === 1}
+                className="px-5 py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-40 flex items-center gap-1.5"
+              >
+                <ChevronLeft className="w-4 h-4" /> Sebelumnya
+              </button>
+              {wizardStep < 5 ? (
+                <button 
+                  onClick={() => setWizardStep(prev => Math.min(5, prev + 1))}
+                  className="px-6 py-2.5 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 shadow-md flex items-center gap-1.5"
+                >
+                  Selanjutnya <ChevronRight className="w-4 h-4" />
+                </button>
+              ) : (
+                <button 
+                  onClick={handleGenerateRpm}
+                  className="px-6 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 shadow-md flex items-center gap-1.5"
+                >
+                  Selesai & Generate <Check className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 3. PREVIEW TAB */}
+        {currentTab === 'preview' && (
+          <div className="p-6 md:p-8 max-w-5xl mx-auto w-full space-y-6">
+            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between flex-wrap gap-4">
+              <div className="flex items-center gap-3">
+                <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Stempel & Materi Ajar Aktif
+                </span>
+                <span className="text-xs text-slate-500">Siap Download ke Word (.doc) & Print</span>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button 
+                  onClick={handleDownloadWord}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 transition-all flex items-center gap-2 shadow-md"
+                >
+                  <Download className="w-4 h-4" /> Download Word (.doc)
+                </button>
+                <button 
+                  onClick={() => window.print()}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 text-white hover:bg-slate-900 transition-all flex items-center gap-1.5 shadow-sm"
+                >
+                  <Printer className="w-3.5 h-3.5" /> Cetak / PDF
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-lg overflow-hidden">
+              <div className="bg-slate-800 text-white p-3.5 flex items-center justify-between text-xs font-semibold">
+                <span>Pratinjau Dokumen RPM Lengkap Materi Ajar</span>
+                <span className="text-[11px] text-slate-300">{formData.satuanPendidikan}</span>
+              </div>
+              <div 
+                className="p-6 md:p-10 bg-slate-50 overflow-auto max-h-[800px]"
+                dangerouslySetInnerHTML={{ __html: formData.editorContent || generatePDFMatchedRpmHtml(formData) }}
+              ></div>
+            </div>
+          </div>
+        )}
+
+        {/* 4. HISTORY TAB */}
+        {currentTab === 'history' && (
+          <div className="p-6 md:p-8 max-w-5xl mx-auto w-full space-y-6">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <h3 className="font-bold text-slate-800 text-base">Riwayat Dokumen RPM</h3>
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                    <input 
+                      type="text" 
+                      placeholder="Cari mata pelajaran..." 
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      className="pl-9 pr-4 py-2 rounded-xl border border-slate-300 text-xs w-64"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-100 text-slate-700 text-xs font-bold border-b">
+                      <th className="p-3">No</th>
+                      <th className="p-3">Mata Pelajaran</th>
+                      <th className="p-3">Kelas / Fase</th>
+                      <th className="p-3">Materi Pokok</th>
+                      <th className="p-3">Tanggal</th>
+                      <th className="p-3">Status</th>
+                      <th className="p-3 text-center">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-xs divide-y divide-slate-200">
+                    {savedRpmList
+                      .filter(item => item.mataPelajaran.toLowerCase().includes(searchQuery.toLowerCase()) || item.materi.toLowerCase().includes(searchQuery.toLowerCase()))
+                      .map((item, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50">
+                        <td className="p-3 font-semibold">{idx + 1}</td>
+                        <td className="p-3 font-bold text-indigo-700">{item.mataPelajaran}</td>
+                        <td className="p-3">Kelas {item.kelas} (Fase {item.fase})</td>
+                        <td className="p-3">{item.materi}</td>
+                        <td className="p-3">{item.tanggal}</td>
+                        <td className="p-3"><span className="px-2 py-1 bg-emerald-100 text-emerald-800 rounded-full font-semibold">{item.status}</span></td>
+                        <td className="p-3 text-center space-x-2">
+                          <button 
+                            onClick={() => {
+                              setFormData(prev => ({ ...prev, editorContent: item.isi }));
+                              setCurrentTab('preview');
+                            }}
+                            className="px-3 py-1 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700"
+                          >
+                            Buka
+                          </button>
+                          <button 
+                            onClick={() => {
+                              const filtered = savedRpmList.filter((_, i) => i !== idx);
+                              setSavedRpmList(filtered);
+                              showToast('RPM berhasil dihapus.');
+                            }}
+                            className="px-3 py-1 bg-red-100 text-red-700 rounded-lg font-bold hover:bg-red-200"
+                          >
+                            Hapus
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 5. TEMPLATES TAB */}
+        {currentTab === 'templates' && (
+          <div className="p-6 md:p-8 max-w-5xl mx-auto w-full space-y-6">
+            <h3 className="font-bold text-slate-800 text-lg">Pilihan Template RPM</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[
+                { title: "RPM SD Kurikulum Merdeka", desc: "Format standar pembelajaran mendalam untuk jenjang SD Fase A-C." },
+                { title: "RPM SMP Kurikulum Merdeka", desc: "Disesuaikan untuk karakteristik peserta didik remaja awal Fase D." },
+                { title: "RPM SMA/SMK Teori & Praktik", desc: "Dilengkapi sintaks pembelajaran kejuruan dan penyesuaian industri (DUDI)." },
+                { title: "RPM Project Based Learning", desc: "Fokus pada pembuatan produk nyata dan kolaborasi tim siswa." },
+                { title: "RPM Problem Based Learning", desc: "Berbasis pemecahan masalah kontekstual dunia nyata." },
+                { title: "RPM Teaching Factory (TeFa)", desc: "Standar operasional kejuruan berbasis produksi industri." }
+              ].map((tpl, i) => (
+                <div key={i} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-3 flex flex-col justify-between">
+                  <div>
+                    <h4 className="font-bold text-slate-800 text-base">{tpl.title}</h4>
+                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">{tpl.desc}</p>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      setCurrentTab('wizard');
+                      setWizardStep(1);
+                      showToast(`Template ${tpl.title} dipilih!`);
+                    }}
+                    className="w-full py-2.5 bg-indigo-50 text-indigo-700 font-bold text-xs rounded-xl hover:bg-indigo-100 transition-all"
+                  >
+                    Gunakan Template
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 6. SCHOOL PROFILE TAB */}
+        {currentTab === 'school' && (
+          <div className="p-6 md:p-8 max-w-3xl mx-auto w-full space-y-6">
+            <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+              <h3 className="font-bold text-slate-800 text-base">Pengaturan Profil Sekolah & Penandatangan</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Nama Satuan Pendidikan</label>
+                  <input 
+                    type="text" 
+                    value={schoolProfile.namaSekolah}
+                    onChange={e => setSchoolProfile({...schoolProfile, namaSekolah: e.target.value})}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">NPSN</label>
+                  <input 
+                    type="text" 
+                    value={schoolProfile.npsN}
+                    onChange={e => setSchoolProfile({...schoolProfile, npsN: e.target.value})}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Nama Kepala Sekolah & Gelar</label>
+                  <input 
+                    type="text" 
+                    value={schoolProfile.kepalaSekolah}
+                    onChange={e => setSchoolProfile({...schoolProfile, kepalaSekolah: e.target.value})}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">NIP Kepala Sekolah</label>
+                  <input 
+                    type="text" 
+                    value={schoolProfile.nipKepalaSekolah}
+                    onChange={e => setSchoolProfile({...schoolProfile, nipKepalaSekolah: e.target.value})}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm"
+                  />
+                </div>
+              </div>
+              <div className="pt-3">
+                <button 
+                  onClick={() => {
+                    setFormData(prev => ({
+                      ...prev,
+                      satuanPendidikan: schoolProfile.namaSekolah,
+                      kepalaSekolah: schoolProfile.kepalaSekolah,
+                      nipKepalaSekolah: schoolProfile.nipKepalaSekolah
+                    }));
+                    showToast('Profil sekolah berhasil diperbarui!');
+                  }}
+                  className="px-6 py-3 bg-indigo-600 text-white text-xs font-bold rounded-xl shadow-md hover:bg-indigo-700"
+                >
+                  Simpan Profil Sekolah
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+      </main>
+    </div>
+  );
+}
